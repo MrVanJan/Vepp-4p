@@ -1,0 +1,6 @@
+Vepp_lib-библиотека
+
+Examples_Vepp-примеры
+freqAmpl-частота от амплитуды
+tr_ex-траектория(+см pdf)
+test_exp_opticalFunctions_and_phase-сравнение фаз с моделью и сравнение бета из фазы и бета из амплитуды с моделью
