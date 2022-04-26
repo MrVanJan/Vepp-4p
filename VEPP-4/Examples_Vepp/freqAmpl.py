@@ -124,7 +124,7 @@ freq_class_massive=np.empty(0)
 freq_massive=np.empty(0)
 ampl_massive=np.empty(0)
 for i in np.arange(int(np.shape(exp_data)[1])):
-    freq_class_massive=np.append(freq_class_massive,fl.Calculate_Freq(exp_data[0][i][:len1]))
+    freq_class_massive=np.append(freq_class_massive,fl.Calculate_Freq(exp_data[0][i][:len1],N_pad=0))
     freq_massive=np.append(freq_massive,freq_class_massive[i].calculate_freq)
     ampl_massive=np.append(ampl_massive,freq_class_massive[i].calculate_ampl_and_phase(len2)[0])
 

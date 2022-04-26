@@ -47,7 +47,6 @@ first=np.genfromtxt(name_data,dtype=dt_1)['f_name']
 импортирую экспериментальные данные
 '''
 dataExp1=np.load('../data_Vepp/tbt_2021_12_06_19_02_17.npy','r')[0]
-
 '''
 size-колличество оборотов
 numberi-номера пикапов для определения оптики методом 3х пикапов
@@ -74,7 +73,7 @@ classMassive=tpe.Twiss_data(type="t",bpm_numbers=np.array([number1,number2,numbe
                             model_beta=model_beta,model_alf=model_alf,len=size)
 ampl_phase_Massive=np.empty(0)
 for i in np.arange(54):
-    ampl_phase_Massive=np.append(ampl_phase_Massive,fl.Calculate_Freq(dataExp_massive[i]).calculate_ampl_and_phase(size))
+    ampl_phase_Massive=np.append(ampl_phase_Massive,fl.Calculate_Freq(dataExp_massive[i],0).calculate_ampl_and_phase(size))
 ampl_phase_Massive=np.reshape(ampl_phase_Massive,(-1,2))
 #print(ampl_phase_Massive)
 phase=classMassive.exp_phase(ampl_phase_Massive,model_delt_phase,53)

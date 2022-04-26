@@ -75,25 +75,25 @@ class Structure(Element):
 
     def calculate_TM(self)->np.ndarray:
 
-        self.a11 = np.sqrt(self.data[self.end][2] / self.data[self.begin][2]) * (
+        a11 = np.sqrt(self.data[self.end][2] / self.data[self.begin][2]) * (
                     np.cos(self.data[self.end][4] - self.data[self.begin][4]) + self.data[self.begin][3]
                     * np.sin(self.data[self.end][4] - self.data[self.begin][4]))
 
-        self.a12 = np.sqrt(self.data[self.end][2] * self.data[self.begin][2]) * np.sin(
+        a12 = np.sqrt(self.data[self.end][2] * self.data[self.begin][2]) * np.sin(
             self.data[self.end][4] - self.data[self.begin][4])
 
-        self.a21 = -((1 + self.data[self.begin][3] * self.data[self.end][3]) / np.sqrt(
+        a21 = -((1 + self.data[self.begin][3] * self.data[self.end][3]) / np.sqrt(
             self.data[self.end][2] * self.data[self.begin][2])) * np.sin(
             self.data[self.end][4] - self.data[self.begin][4]) + (
                                (self.data[self.begin][3] - self.data[self.end][3]) / np.sqrt(
                            self.data[self.end][2] * self.data[self.begin][2])) * np.cos(
             self.data[self.end][4] - self.data[self.begin][4])
 
-        self.a22 = np.sqrt(self.data[self.begin][2] / self.data[self.end][2]) * (
+        a22 = np.sqrt(self.data[self.begin][2] / self.data[self.end][2]) * (
                     np.cos(self.data[self.end][4] - self.data[self.begin][4]) - self.data[self.end][
                 3] * np.sin(self.data[self.end][4] - self.data[self.begin][4]))
 
-        return np.array([[self.a11,self.a12],[self.a21,self.a22]])
+        return np.array([[a11,a12],[a21,a22]])
 
 
     def one_turn_matrix(self):
@@ -105,7 +105,45 @@ class Structure(Element):
 
         return self.turn_matrix
 
+    def one_turn_matrix_error(self,sigma,nu,num):
+        k = np.random.normal(nu, sigma, 54) * pow(10, -3)
+        turn_matr_error = np.array([[1, 0], [0, 1]])
+        if num==0:
+            for i in np.arange(54):
+                if i == 53:
+                    j = 54
+                else:
+                    j = i + 1
+                k_matr = np.array([[1, 0], [k[i], 1]])
+                turn_matr_error = np.dot(Structure('none', 'none', i, j, self.data).calculate_TM(),
+                                         np.dot(k_matr, turn_matr_error))
+        else:
+            for i in np.arange(num,54):
+                if i == 53:
+                    j = 54
+                else:
+                    j = i + 1
+                k_matr = np.array([[1, 0], [k[i], 1]])
+                turn_matr_error = np.dot(Structure('none', 'none', i, j, self.data).calculate_TM(),np.dot(k_matr, turn_matr_error))
+            for i in np.arange(0,num):
+                j = i + 1
+                k_matr = np.array([[1, 0], [k[i], 1]])
+                turn_matr_error = np.dot(Structure('none', 'none', i, j, self.data).calculate_TM(),np.dot(k_matr, turn_matr_error))
 
+        return turn_matr_error
+
+    def init_error(self,init_cond:np.array,num:int,nu:float,sigma:float):
+        if num==0:
+            init_error_coord=init_cond
+        else:
+            transp_matr=np.array([[1,0],[0,1]])
+            k = np.random.normal(nu, sigma, 54) * pow(10, -4)
+            for i in np.arange(0,num):
+                k_matr = np.array([[1, 0], [k[i], 1]])
+                j=i+1
+                transp_matr=np.dot(Structure('none', 'none', i, j, self.data).calculate_TM(),np.dot(k_matr, transp_matr))
+            init_error_coord=np.dot(transp_matr,init_cond)
+        return init_error_coord
 class Sextupole(Element):
 
     def __init__(self, name:str=None, strength:float=0.0) -> None:
@@ -151,6 +189,93 @@ class Trajectory():
             self.initcond_i_bpm=np.dot(Structure('none','none',self.sext_location,self.number,self.data).calculate_TM(),self.initcond_i_bpm.T).T
 
         return self.initcond_i_bpm
+
+    def init_condBPM_error(self,nu,sigma):
+        self.initcond_i_bpm_error = copy.deepcopy(self.init_cond)
+        self.sigma=sigma
+        self.nu=nu
+        if self.sext_location >= self.number:
+            for i in np.arange(self.number):
+                thin_Q=np.array([[1,0],[np.random.normal(self.nu,self.sigma,1)[0],1]])
+                self.initcond_i_bpm_error=np.dot(Structure('none','none',i,i+1,self.data).calculate_TM(), self.initcond_i_bpm_error.T).T
+                self.initcond_i_bpm_error = np.dot(thin_Q,self.initcond_i_bpm_error.T).T
+
+        else:
+            for i in np.arange(self.sext_location):
+                thin_Q = np.array([[1, 0], [np.random.normal(self.nu,self.sigma,1)[0], 1]])
+                self.initcond_i_bpm_error = np.dot(Structure('none', 'none', i, i+1, self.data).calculate_TM(), self.initcond_i_bpm_error.T).T
+                self.initcond_i_bpm_error=np.dot(thin_Q,self.initcond_i_bpm_error.T).T
+
+            self.initcond_i_bpm_error = np.array([Sextupole(name="none", strength=self.strenght).forward(self.initcond_i_bpm_error[i]) for i in range(self.initcond_i_bpm_error.shape[0])])
+            for i in np.arange(self.number-self.sext_location):
+                thin_Q = np.array([[1, 0], [np.random.normal(self.nu,self.sigma,1)[0], 1]])
+                self.initcond_i_bpm_error = np.dot(Structure('none', 'none', self.sext_location+i,  self.sext_location+i + 1, self.data).calculate_TM(),self.initcond_i_bpm_error.T).T
+                self.initcond_i_bpm_error=np.dot(thin_Q,self.initcond_i_bpm_error.T).T
+
+        return self.initcond_i_bpm_error
+
+    def calculate_trajectory_error(self):
+        self.init_condBPM_error(self.nu,self.sigma)
+        self.coordinats=copy.deepcopy(self.init_condBPM_error(self.nu,self.sigma))
+        self.coordinats_Array_error=np.empty(0)
+        self.coordinats_Array_error=np.append(self.coordinats_Array_error,self.initcond_i_bpm_error)
+        if self.sext_location >= self.number:
+
+            for j in np.arange(self.power-1).tolist():
+
+                for i in np.arange(self.sext_location-self.number):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats = np.dot(Structure('none', 'none', self.number+i, self.number+i+1, self.data).calculate_TM(),self.coordinats.T).T
+                    self.coordinats=np.dot(thin_Q,self.coordinats.T).T
+
+                self.coordinats = np.array(
+                    [Sextupole(name="none", strength=self.strenght).forward(self.coordinats[k]) for k in
+                     range(self.initcond_i_bpm.shape[0])])
+
+
+                for i in np.arange(self.end-self.sext_location):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats = np.dot(Structure('none', 'none', self.sext_location+i, self.sext_location+i+1, self.data).calculate_TM(),self.coordinats.T).T
+                    self.coordinats=np.dot(thin_Q,self.coordinats.T).T
+
+                for i in np.arange(self.number):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats = np.dot(Structure('none', 'none', i, i+1, self.data).calculate_TM(),self.coordinats.T).T
+                    self.coordinats = np.dot(thin_Q,self.coordinats.T).T
+                self.coordinats_Array_error=np.append(self.coordinats_Array_error,self.coordinats)
+
+        else:
+
+            for j in np.arange(self.power-1).tolist():
+
+                for i in np.arange(self.end-self.number):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats =np.dot(Structure('none', 'none', self.number+i, self.number+i+1, self.data).calculate_TM(),self.coordinats.T).T
+                    self.coordinats = np.dot(thin_Q,self.coordinats.T).T
+
+                for i in np.arange(self.sext_location):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats = np.dot(Structure('none', 'none', i, i + 1, self.data).calculate_TM(), self.coordinats.T).T
+                    self.coordinats = np.dot(thin_Q, self.coordinats.T).T
+
+                self.coordinats = np.array(
+                    [Sextupole(name="none", strength=self.strenght).forward(self.coordinats[k]) for k in
+                     range(self.initcond_i_bpm.shape[0])])
+
+                for i in np.arange(self.number-self.sext_location):
+                    thin_Q = np.array([[1, 0], [np.random.normal(self.nu, self.sigma, 1)[0], 1]])
+                    self.coordinats = np.dot(Structure('none', 'none', self.sext_location+i, self.sext_location+i + 1, self.data).calculate_TM(),self.coordinats.T).T
+                    self.coordinats = np.dot(thin_Q, self.coordinats.T).T
+
+                self.coordinats_Array_error=np.append(self.coordinats_Array_error,self.coordinats)
+
+        self.vector_massive=np.reshape(self.coordinats_Array_error,(self.power*self.initcond_i_bpm.shape[0],2))
+        self.res=np.reshape(self.coordinats_Array_error,(self.initcond_i_bpm.shape[0]*self.power,2)).T
+        return self.res
+
+    def noize_trajectory_error(self,sigma,nu):
+        self.noize_error_X_coordinat=self.res[0]+np.random.normal(nu,sigma,np.shape(self.res[0])[0])
+        return self.noize_error_X_coordinat
 
     def calculate_trajectory(self):
         self.init_condBPM()
@@ -201,7 +326,6 @@ class Trajectory():
 
     def liniarization_trajectory(self):
         self.twiss_parametrs=Structure(name='Turn',type='turn matrix',begin=self.number,end=0,data=self.data).twiss_parametrs()
-        self.normalization_matrix=np.array([[1/np.sqrt(self.twiss_parametrs[1]),0],[self.twiss_parametrs[2]/np.sqrt(self.twiss_parametrs[1]),np.sqrt(self.twiss_parametrs[1])]])
-        self.norm_coordinats_Array=np.dot(self.normalization_matrix,self.vector_massive.T).T
-
+        normalization_matrix=np.array([[1/np.sqrt(self.twiss_parametrs[1]),0],[self.twiss_parametrs[2]/np.sqrt(self.twiss_parametrs[1]),np.sqrt(self.twiss_parametrs[1])]])
+        self.norm_coordinats_Array=np.dot(normalization_matrix,self.vector_massive.T).T
         return np.reshape(self.norm_coordinats_Array,(self.power*self.initcond_i_bpm.shape[0],2)).T
